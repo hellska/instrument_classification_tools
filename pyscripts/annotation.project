@@ -1,0 +1,97 @@
+# This file should contain all the information relevant to conducting a set of evaluations
+#
+# This information includes:
+#  - location of the files on hard disk (audio files, datasets, results, ...)
+#  - list of preprocessing steps that need to be applied to the original data
+#  - list of classifiers that need to be trained and evaluated
+#  - list of evaluations that need to be performed
+
+# name of the feature one wants to classify (genre, mood, artist...)
+className: annotation
+
+
+# Path to the directory where the preprocessed datasets are going to be stored
+# This can be absolute or relative to where you launch the main classification script
+datasetsDirectory: /Volumes/datadisk/hellska/thesis/datasets/annotate_temp/annotation/datasets
+
+# Path to the directory where the results are going to be stored
+# This can be absolute or relative to where you launch the main classification script
+resultsDirectory: /Volumes/datadisk/hellska/thesis/datasets/annotate_temp/annotation/results
+
+
+# Path to the yaml file containing the list of files to be merged in the original dataset
+filelist: /Volumes/datadisk/hellska/thesis/datasets/annotate_temp/annotation/filelist-yaml.yaml
+
+# Path to the groundtruth file, containing a serialized gaia2.classification.GroundTruth object
+groundtruth: /Volumes/datadisk/hellska/thesis/datasets/annotate_temp/annotation/groundtruth.yaml
+
+
+# List of preprocessed datasets to build
+preprocessing:
+    # it is possible to not apply any processing, although this is of
+    # of little value in real-life tests and evaluations
+    raw: []
+
+    basic:
+        - transfo: remove
+          params: { descriptorNames: &unusedDescs [ 'metadata.*', '*dmean*', '*dvar*',
+                                                    '*.min', '*.max', 'tonal.chords_histogram'
+                                                    ] }
+        - transfo: enumerate
+          params: { descriptorNames: &stringDescs [ # 'rhythm.perceptual_tempo', # removed from new extractor
+                                                    'tonal.chords_key', 'tonal.chords_scale',
+                                                    'tonal.key_key', 'tonal.key_scale',
+                                                    'sfx.oddtoevenharmonicenergyratio.mean', 'sfx.oddtoevenharmonicenergyratio.var',
+                                                    'tonal.chords_progression'] }
+
+    lowlevel:
+        # note that the order of the transformations is important!
+        - transfo: remove
+          params: { descriptorNames: *unusedDescs }
+        - transfo: enumerate
+          params: { descriptorNames: *stringDescs }
+        - transfo: select
+          params: { descriptorNames: 'lowlevel*' }
+
+    sfx:
+         - transfo: remove
+           params: { descriptorNames: *unusedDescs }
+         - transfo: enumerate
+           params: { descriptorNames: *stringDescs }
+         - transfo: select
+           params: { descriptorNames: [ 'sfx*' ] }
+
+    normalized:
+        - transfo: remove
+          params: { descriptorNames: *unusedDescs }
+        - transfo: enumerate
+          params: { descriptorNames: *stringDescs }
+        - transfo: normalize
+
+    gaussianized:
+        - transfo: remove
+          params: { descriptorNames: *unusedDescs }
+        - transfo: enumerate
+          params: { descriptorNames: *stringDescs }
+        - transfo: normalize
+        - transfo: gaussianize
+          params: { descriptorNames: 'lowlevel.*' }
+
+# List of classifiers to be trained
+classifiers:
+    svm:
+        # first svm test combinations
+        #- preprocessing: [ 'basic', 'lowlevel', 'nobands', 'normalized', 'gaussianized' ] # 'nosfx'
+        - preprocessing: [ 'basic']
+          type: [ 'C-SVC' ]
+          kernel: [ 'poly', 'RBF' ]
+          C:     [ -5, -3, -1, 1, 3, 5, 7, 9, 11 ] # will actually be 2**x
+          gamma: [ 3, 1, -1, -3, -5, -7, -9, -11 ] # will actually be 2**x
+        #  descriptorNames: [ ['*.mean', '*.var'] ]
+        # more svm params combinations
+        # ...
+
+# List of evaluations to be performed
+evaluations:
+    nfoldcrossvalidation:
+        - nfold: [ 10 ]
